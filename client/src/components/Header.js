@@ -1,4 +1,6 @@
-function Header() {
+import { Link } from 'react-router-dom';
+
+function Header({ user, cartCount }) {
   return (
     <header className="topbar">
       <div className="brand-wrap">
@@ -10,15 +12,19 @@ function Header() {
       </div>
 
       <nav className="nav-links">
-        <a href="#home">Home</a>
-        <a href="#books">Books</a>
-        <a href="#collections">Collections</a>
-        <a href="#reviews">Reviews</a>
+        <Link to="/">Home</Link>
+        <a href="/#books">Books</a>
+        <a href="/#collections">Collections</a>
+        <a href="/#reviews">Reviews</a>
       </nav>
 
       <div className="nav-actions">
-        <button className="btn btn-light">Sign In</button>
-        <button className="btn btn-primary">Cart (2)</button>
+        <Link to="/login" className="btn btn-light link-btn">
+          {user ? user.name || 'Account' : 'Sign In'}
+        </Link>
+        <Link to="/cart" className="btn btn-primary link-btn">
+          Cart ({cartCount})
+        </Link>
       </div>
     </header>
   );
