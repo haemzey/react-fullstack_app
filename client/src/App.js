@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Hero from './components/Hero';
@@ -11,11 +11,11 @@ import CheckoutPanel from './components/CheckoutPanel';
 import CartPage from './pages/CartPage';
 import CheckoutPage from './pages/CheckoutPage';
 import AuthPage from './pages/AuthPage';
-import { books as initialBooks } from './data/books';
+import { createBook, createOrder, fetchBooks, loginUser } from './services/api';
 import './App.css';
 
 function App() {
-  const [books, setBooks] = useState(initialBooks);
+  const [books, setBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
   const [notice, setNotice] = useState('');
   const [cartItems, setCartItems] = useState([
@@ -37,6 +37,15 @@ function App() {
     }
   ]);
   const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const loadBooks = async () => {
+      const serverBooks = await fetchBooks();
+      setBooks(serverBooks);
+    };
+
+    loadBooks();
+  }, []);
 
   const cartCount = useMemo(
     () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
@@ -79,26 +88,31 @@ function App() {
     setNotice(`${book.title} has been reserved for you.`);
   };
 
-  const handleSellBook = (newBook) => {
-    const bookToAdd = {
-      id: Date.now(),
-      title: newBook.title,
-      author: newBook.author,
-      price: Number(newBook.price),
-      category: newBook.category,
-      rating: 4.5,
-      image: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=900&q=80',
-      badge: 'Listed'
-    };
+  const handleSellBook = async (newBook) => {
+    const result = await createBook(newBook);
 
-    setBooks((prev) => [bookToAdd, ...prev]);
-    setNotice(`${newBook.title} has been listed for sale.`);
+    if (result.success) {
+      setBooks((prev) => [result.data, ...prev]);
+      setNotice(`${newBook.title} has been listed for sale.`);
+    } else {
+      setNotice(result.message || 'Could not list the book.');
+    }
   };
 
-  const handlePayment = (paymentInfo) => {
-    setNotice(
-      `Payment successful via ${paymentInfo.bank} for ${paymentInfo.title}. Thank you for shopping with BookNest.`
-    );
+  const handlePayment = async (paymentInfo) => {
+    const result = await createOrder({
+      items: [paymentInfo],
+      bank: paymentInfo.bank,
+      cardNumber: paymentInfo.cardNumber,
+      name: paymentInfo.name,
+      total: paymentInfo.price
+    });
+
+    if (result.success) {
+      setNotice(result.message);
+    } else {
+      setNotice(result.message || 'Payment failed.');
+    }
   };
 
   const handleIncrease = (id) => {
@@ -123,9 +137,15 @@ function App() {
     setCartItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleLogin = (currentUser) => {
-    setUser(currentUser);
-    setNotice(`Welcome, ${currentUser.name || currentUser.email}!`);
+  const handleLogin = async (currentUser) => {
+    const result = await loginUser(currentUser);
+
+    if (result.success) {
+      setUser(result.user);
+      setNotice(`Welcome, ${result.user.name || result.user.email}!`);
+    } else {
+      setNotice(result.message || 'Login failed.');
+    }
   };
 
   const HomePage = () => (
@@ -164,10 +184,25 @@ function App() {
               element={
                 <CheckoutPage
                   cartItems={cartItems}
-                  onConfirmPayment={(payment) => {
-                    setNotice(
-                      `Payment successful via ${payment.bank} for a total of $${payment.total.toFixed(2)}.`
+                  onConfirmPayment={async (payment) => {
+                    const total = cartItems.reduce(
+                      (sum, item) => sum + item.price * item.quantity,
+                      0
                     );
+
+                    const result = await createOrder({
+                      items: cartItems,
+                      bank: payment.bank,
+                      cardNumber: payment.cardNumber,
+                      name: payment.name,
+                      total
+                    });
+
+                    if (result.success) {
+                      setNotice(result.message);
+                    } else {
+                      setNotice(result.message || 'Payment failed.');
+                    }
                   }}
                 />
               }
